@@ -31,12 +31,25 @@ export async function POST(req: Request) {
       return new Response('No message provided', { status: 400 });
     }
 
-    const modeInstruction = mode === 'en-ja' 
-      ? '【指示】: 入力された英語を日本語に翻訳し、意味を簡潔に解説してください。さらに、より自然な別の英語表現も提示してください。' 
-      : '【指示】: 入力された日本語を英語に翻訳してください。Quick ResponseとAdvanced Expressionの2つを提示してください。';
+    const modeInstruction = mode === 'en-ja'
+      ? `
+### 指示
+入力された英語を日本語に翻訳し、意味を簡潔に解説してください。
+さらに、より自然な別の英語表現も提示してください。
+`
+      : `
+### 指示
+入力された日本語を英語に翻訳してください。
+以下の2点を必ず提示してください：
+- **Quick Response**: Neoが今すぐ使える、正確でシンプルな表現
+- **Advanced Expression**: より洗練された自然な言い回し
+
+使われてる文法も軽く解説してほしい。
+例) to不定詞や関係代名詞など。どれくらい日常的に使うかの頻度も☆3段階中で評価してほしい。
+`;
 
     // Append context to user message if present
-    const promptWithContext = context 
+    const promptWithContext = context
       ? `${modeInstruction}\n【状況/トーン】: ${context}\n\n【入力】: ${latestMessage}`
       : `${modeInstruction}\n\n【入力】: ${latestMessage}`;
 
