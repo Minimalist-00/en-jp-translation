@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import { Send, Sparkles, Zap, Coffee, Briefcase, MessageSquareHeart, UserRound, ArrowRightLeft } from 'lucide-react';
+import { Send, Sparkles, UserRound, ArrowRightLeft } from 'lucide-react';
 
 export default function Home() {
   const [messages, setMessages] = useState<{ role: string, content: string }[]>([]);
@@ -9,7 +9,6 @@ export default function Home() {
   const [isLoading, setIsLoading] = useState(false);
   const [mode, setMode] = useState<'ja-en' | 'en-ja'>('ja-en');
 
-  const [activeContext, setActiveContext] = useState<string>('');
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   // Auto-resize textarea
@@ -20,12 +19,7 @@ export default function Home() {
     }
   }, [input]);
 
-  const contexts = [
-    { id: 'casual', label: '友達と', icon: <MessageSquareHeart className="w-4 h-4" /> },
-    { id: 'cafe', label: 'カフェ', icon: <Coffee className="w-4 h-4" /> },
-    { id: 'business', label: 'ビジネス', icon: <Briefcase className="w-4 h-4" /> },
-    { id: 'short', label: '短く', icon: <Zap className="w-4 h-4" /> },
-  ];
+
 
   const onSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -35,7 +29,7 @@ export default function Home() {
     setInput('');
     setIsLoading(true);
 
-    const activeContextLabel = activeContext !== '' ? contexts.find(c => c.id === activeContext)?.label : null;
+
     const newMessages = [{ role: 'user', content: userText }];
     setMessages(newMessages);
 
@@ -45,7 +39,6 @@ export default function Home() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           messages: newMessages,
-          context: activeContextLabel,
           mode: mode
         }),
       });
@@ -108,10 +101,7 @@ export default function Home() {
             <ArrowRightLeft className="w-3 h-3 text-slate-400" />
           </button>
           
-          <div className="rounded-full px-3 py-1 bg-blue-50 text-blue-600 text-xs font-medium flex items-center gap-1">
-            <UserRound className="w-3 h-3" />
-            Intermediate
-          </div>
+
         </div>
       </header>
 
@@ -170,24 +160,7 @@ export default function Home() {
       <div className="fixed bottom-0 left-0 right-0 bg-white shadow-[0_-10px_40px_rgba(0,0,0,0.05)] border-t border-slate-100 z-20 pb-safe">
         <div className="max-w-md mx-auto p-4">
           
-          {/* Context Selectors */}
-          <div className="flex gap-2 overflow-x-auto pb-3 mb-1 no-scrollbar -mx-4 px-4 snap-x">
-            {contexts.map((ctx) => (
-              <button
-                key={ctx.id}
-                type="button"
-                onClick={() => setActiveContext(ctx.id === activeContext ? '' : ctx.id)}
-                className={`flex-shrink-0 snap-center flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium transition-all duration-200 ${
-                  activeContext === ctx.id
-                    ? 'bg-blue-600 text-white shadow-md shadow-blue-200'
-                    : 'bg-slate-100 text-slate-600 border border-slate-200/60 hover:bg-slate-200'
-                }`}
-              >
-                {ctx.icon}
-                {ctx.label}
-              </button>
-            ))}
-          </div>
+
 
           <form onSubmit={onSubmit} className="flex gap-2 items-end">
             <div className="bg-slate-100 rounded-2xl flex-1 flex items-center px-4 py-1.5 border border-transparent focus-within:border-blue-400 focus-within:bg-white focus-within:ring-4 focus-within:ring-blue-100 transition-all duration-200">
