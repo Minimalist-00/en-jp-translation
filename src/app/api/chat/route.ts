@@ -23,7 +23,7 @@ Neo専用の英語メンター兼、通信量節約型の超高速翻訳機。
 
 export async function POST(req: Request) {
   try {
-    const { messages, context } = await req.json();
+    const { messages, context, mode } = await req.json();
 
     // Extract the latest user message
     const latestMessage = messages[messages.length - 1]?.content;
@@ -32,13 +32,17 @@ export async function POST(req: Request) {
       return new Response('No message provided', { status: 400 });
     }
 
+    const modeInstruction = mode === 'en-ja' 
+      ? '【指示】: 入力された英語を日本語に翻訳し、意味を簡潔に解説してください。さらに、より自然な別の英語表現も提示してください。' 
+      : '【指示】: 入力された日本語を英語に翻訳してください。Quick ResponseとAdvanced Expressionの2つを提示してください。';
+
     // Append context to user message if present
     const promptWithContext = context 
-      ? `【状況/トーン】: ${context}\n\n【入力】: ${latestMessage}`
-      : `【入力】: ${latestMessage}`;
+      ? `${modeInstruction}\n【状況/トーン】: ${context}\n\n【入力】: ${latestMessage}`
+      : `${modeInstruction}\n\n【入力】: ${latestMessage}`;
 
     const result = streamText({
-      model: google('gemini-1.5-flash'), // Flash for zero-latency requirement
+      model: google('gemini-2.5-flash'), // Flash for zero-latency requirement
       system: SYSTEM_PROMPT,
       messages: [
         { role: 'user', content: promptWithContext }

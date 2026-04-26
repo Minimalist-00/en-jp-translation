@@ -1,12 +1,13 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import { Send, Sparkles, Zap, Coffee, Briefcase, MessageSquareHeart, UserRound, ArrowRight } from 'lucide-react';
+import { Send, Sparkles, Zap, Coffee, Briefcase, MessageSquareHeart, UserRound, ArrowRightLeft } from 'lucide-react';
 
 export default function Home() {
   const [messages, setMessages] = useState<{ role: string, content: string }[]>([]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [mode, setMode] = useState<'ja-en' | 'en-ja'>('ja-en');
 
   const [activeContext, setActiveContext] = useState<string>('');
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -44,7 +45,8 @@ export default function Home() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           messages: newMessages,
-          context: activeContextLabel
+          context: activeContextLabel,
+          mode: mode
         }),
       });
 
@@ -66,9 +68,16 @@ export default function Home() {
         
         setMessages([...newMessages, { role: 'assistant', content: text }]);
       }
-    } catch (error) {
+      
+      if (text.trim() === '') {
+        throw new Error('APIから空の応答が返されました。APIキーが正しく設定されていないか、サーバーの再起動が必要です。');
+      }
+    } catch (error: any) {
       console.error(error);
-      setMessages([...newMessages, { role: 'assistant', content: 'エラーが発生しました。もう一度お試しください。' }]);
+      const errorMessage = error.message?.includes('APIから空の応答') 
+        ? error.message 
+        : '通信エラー、またはAPIエラーが発生しました。サーバー（npm run dev）を再起動してみてください。';
+      setMessages([...newMessages, { role: 'assistant', content: `⚠️ ${errorMessage}` }]);
     } finally {
       setIsLoading(false);
     }
@@ -90,9 +99,19 @@ export default function Home() {
             Neo<span className="text-blue-500">.</span> AI
           </h1>
         </div>
-        <div className="rounded-full px-3 py-1 bg-blue-50 text-blue-600 text-xs font-medium flex items-center gap-1">
-          <UserRound className="w-3 h-3" />
-          Intermediate
+        <div className="flex items-center gap-3">
+          <button 
+            onClick={() => setMode(m => m === 'ja-en' ? 'en-ja' : 'ja-en')}
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-slate-200 rounded-full text-xs font-semibold text-slate-700 shadow-sm hover:bg-slate-50 active:scale-95 transition-all"
+          >
+            {mode === 'ja-en' ? '日 → 英' : '英 → 日'}
+            <ArrowRightLeft className="w-3 h-3 text-slate-400" />
+          </button>
+          
+          <div className="rounded-full px-3 py-1 bg-blue-50 text-blue-600 text-xs font-medium flex items-center gap-1">
+            <UserRound className="w-3 h-3" />
+            Intermediate
+          </div>
         </div>
       </header>
 
@@ -177,9 +196,8 @@ export default function Home() {
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 onKeyDown={(e) => {
-                  if (e.key === 'Enter' && !e.shiftKey) {
+                  if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
                      e.preventDefault();
-                     // hacky way to submit programmatically from textarea
                      const form = e.currentTarget.closest('form');
                      if (form) form.requestSubmit();
                   }
