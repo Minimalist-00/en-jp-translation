@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import { Send, Sparkles, ArrowRightLeft, Star, Search, MessageSquare, Bookmark } from 'lucide-react';
+import { Send, Sparkles, ArrowRightLeft, Star, Search, MessageSquare, Bookmark, RefreshCw, Trash2 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { supabase } from '@/lib/supabaseClient';
@@ -31,6 +31,16 @@ export default function Home() {
       textareaRef.current.style.height = `${Math.min(textareaRef.current.scrollHeight, 120)}px`;
     }
   }, [input]);
+
+  const handleReload = async () => {
+    if (!window.confirm('トーク履歴を削除してリセットしますか？（ブックマークした項目は残ります）')) return;
+    
+    // ブックマークされていないメッセージを削除
+    await supabase.from('messages').delete().not('is_bookmarked', 'eq', true);
+    
+    // 画面の表示を更新（ブックマークのみ残す）
+    setMessages(prev => prev.filter(m => m.is_bookmarked));
+  };
 
   // Fetch initial messages from Supabase
   useEffect(() => {
@@ -132,6 +142,13 @@ export default function Home() {
           </h1>
         </div>
         <div className="flex items-center gap-3">
+          <button 
+            onClick={handleReload}
+            className="p-2 rounded-full text-slate-400 hover:bg-slate-100 hover:text-red-500 transition-all"
+            title="履歴をリセット"
+          >
+            <RefreshCw className="w-5 h-5" />
+          </button>
           <button 
             onClick={() => setActiveTab('chat')}
             className={`p-2 rounded-full transition-all ${activeTab === 'chat' ? 'bg-blue-100 text-blue-600' : 'text-slate-400 hover:bg-slate-100'}`}
