@@ -31,28 +31,29 @@ export async function POST(req: Request) {
       return new Response('No message provided', { status: 400 });
     }
 
-    const modeInstruction = mode === 'en-ja'
-      ? `
+    const instruction = `
 ### 指示
-入力された英語を日本語に翻訳し、意味を簡潔に解説してください。
+入力されたテキストの言語を自動で判定し、英語の場合は日本語に、日本語の場合は英語に翻訳してください。
 
-使われてる文法も軽く解説してほしい。
-例) to不定詞や関係代名詞など。どれくらい日常的に使うかの頻度も☆1〜3段階中で評価してほしい。「⭐️」を使って
-`
-      : `
-### 指示
-入力された日本語を英語に翻訳してください。
-以下を必ず提示してください
-- **Quick Response**: Neoが今すぐ使える、正確でシンプルな表現
+必ず以下のルールに従って出力してください。
+1. 翻訳結果の文章（英語に翻訳する場合は、Neoが今すぐ使える正確でシンプルな表現）は、必ず引用ブロック（>）を使って出力すること。
+2. 解説は、HTMLの <details> と <summary> タグを使用して折りたたみ可能にすること。
 
-使われてる文法も軽く解説してほしい。
-例) to不定詞や関係代名詞など。どれくらい日常的に使うかの頻度も☆3段階中で評価してほしい。
+出力例:
+> Hello! （または こんにちは！）
+
+<details>
+<summary>💡 解説をみる</summary>
+
+ここに文法の解説や使用頻度（⭐️の数）、より自然な表現などを記述。
+
+</details>
 `;
 
     // Append context to user message if present
     const promptWithContext = context
-      ? `${modeInstruction}\n【状況/トーン】: ${context}\n\n【入力】: ${latestMessage}`
-      : `${modeInstruction}\n\n【入力】: ${latestMessage}`;
+      ? `${instruction}\n【状況/トーン】: ${context}\n\n【入力】: ${latestMessage}`
+      : `${instruction}\n\n【入力】: ${latestMessage}`;
 
     const result = streamText({
       model: google('gemini-2.5-flash'), // Flash for zero-latency requirement

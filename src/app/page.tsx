@@ -1,9 +1,10 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import { Send, Sparkles, ArrowRightLeft, Star, Search, MessageSquare, Bookmark, RefreshCw, Trash2 } from 'lucide-react';
+import { Send, Sparkles, Star, Search, MessageSquare, Bookmark, RefreshCw, Trash2, Copy, ClipboardPaste, Check } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import rehypeRaw from 'rehype-raw';
 import { supabase } from '@/lib/supabaseClient';
 
 type Message = {
@@ -17,7 +18,6 @@ export default function Home() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [mode, setMode] = useState<'ja-en' | 'en-ja'>('ja-en');
   const [activeTab, setActiveTab] = useState<'chat' | 'bookmarks'>('chat');
   const [searchQuery, setSearchQuery] = useState('');
 
@@ -33,8 +33,6 @@ export default function Home() {
   }, [input]);
 
   const handleReload = async () => {
-    if (!window.confirm('トーク履歴を削除してリセットしますか？（ブックマークした項目は残ります）')) return;
-    
     // ブックマークされていないメッセージを削除
     await supabase.from('messages').delete().not('is_bookmarked', 'eq', true);
     
@@ -78,8 +76,7 @@ export default function Home() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          messages: newMessages.map(m => ({ role: m.role, content: m.content })),
-          mode: mode
+          messages: newMessages.map(m => ({ role: m.role, content: m.content }))
         }),
       });
 
@@ -125,134 +122,192 @@ export default function Home() {
     await supabase.from('messages').update({ is_bookmarked: !currentStatus }).eq('id', id);
   };
 
-  // ブックマークのフィルタリング・検索
-  const bookmarkedMessages = messages.filter(m => m.is_bookmarked && m.role === 'assistant');
-  const searchedBookmarks = bookmarkedMessages.filter(m => m.content.toLowerCase().includes(searchQuery.toLowerCase()));
+  // ブックマークのペアを作成（解説を除外し辞書形式にする）
+  const bookmarkPairs = messages
+    .map((msg, idx) => {
+      if (msg.role === 'assistant' && msg.is_bookmarked) {
+        const userMsg = messages[idx - 1]?.role === 'user' ? messages[idx - 1] : null;
+        return {
+          id: msg.id || String(idx),
+          userContent: userMsg?.content.replace(/【.*?】: /g, '').trim() || '',
+          assistantContent: msg.content,
+          assistantId: msg.id
+        };
+      }
+      return null;
+    })
+    .filter((item): item is NonNullable<typeof item> => item !== null)
+    .filter(pair => 
+      pair.userContent.toLowerCase().includes(searchQuery.toLowerCase()) || 
+      pair.assistantContent.toLowerCase().includes(searchQuery.toLowerCase())
+    );
+
+  const extractMainText = (content: string) => {
+    const parts = content.split('<details>');
+    let mainText = parts[0].trim();
+    return mainText.replace(/^>\s*/gm, '').trim();
+  };
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-800 font-sans selection:bg-blue-100 selection:text-blue-900">
+    <div className="min-h-screen bg-gray-50 text-gray-800 font-sans selection:bg-blue-100 selection:text-blue-900">
       {/* Header */}
       <header className="bg-white px-6 py-4 flex items-center justify-between sticky top-0 z-10 shadow-sm/50">
         <div className="flex items-center gap-2">
-          <div className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center text-white font-bold shadow-md shadow-blue-200">
+          <div className="w-8 h-8 rounded-full bg-blue-500 flex items-center justify-center text-white font-bold shadow-sm">
             N
           </div>
-          <h1 className="text-lg font-semibold tracking-tight text-slate-800">
+          <h1 className="text-lg font-semibold tracking-tight text-gray-900">
             Neo<span className="text-blue-500">.</span> AI
           </h1>
         </div>
         <div className="flex items-center gap-3">
           <button 
             onClick={handleReload}
-            className="p-2 rounded-full text-slate-400 hover:bg-slate-100 hover:text-red-500 transition-all"
+            className="p-2 rounded-full text-gray-400 hover:bg-gray-100 hover:text-red-500 transition-all"
             title="履歴をリセット"
           >
             <RefreshCw className="w-5 h-5" />
           </button>
           <button 
             onClick={() => setActiveTab('chat')}
-            className={`p-2 rounded-full transition-all ${activeTab === 'chat' ? 'bg-blue-100 text-blue-600' : 'text-slate-400 hover:bg-slate-100'}`}
+            className={`p-2 rounded-full transition-all ${activeTab === 'chat' ? 'bg-blue-50 text-blue-500' : 'text-gray-400 hover:bg-gray-100'}`}
           >
             <MessageSquare className="w-5 h-5" />
           </button>
           <button 
             onClick={() => setActiveTab('bookmarks')}
-            className={`p-2 rounded-full transition-all ${activeTab === 'bookmarks' ? 'bg-yellow-100 text-yellow-600' : 'text-slate-400 hover:bg-slate-100'}`}
+            className={`p-2 rounded-full transition-all ${activeTab === 'bookmarks' ? 'bg-yellow-50 text-yellow-600' : 'text-gray-400 hover:bg-gray-100'}`}
           >
             <Bookmark className="w-5 h-5" />
-          </button>
-          
-          <button 
-            onClick={() => setMode(m => m === 'ja-en' ? 'en-ja' : 'ja-en')}
-            className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-slate-200 rounded-full text-xs font-semibold text-slate-700 shadow-sm hover:bg-slate-50 active:scale-95 transition-all"
-          >
-            {mode === 'ja-en' ? '日 → 英' : '英 → 日'}
-            <ArrowRightLeft className="w-3 h-3 text-slate-400" />
           </button>
         </div>
       </header>
 
-      <main className="max-w-md mx-auto p-4 flex flex-col gap-6 pb-32">
+      <main className="max-w-md mx-auto p-3 flex flex-col gap-4 pb-28">
         {activeTab === 'bookmarks' ? (
           <div className="space-y-4">
-            <div className="bg-white rounded-2xl flex items-center px-4 py-2 border border-slate-200 shadow-sm">
-              <Search className="w-5 h-5 text-slate-400 mr-2" />
+            <div className="bg-white rounded-2xl flex items-center px-4 py-2 border border-gray-200 shadow-sm">
+              <Search className="w-5 h-5 text-gray-400 mr-2" />
               <input
                 type="text"
                 placeholder="ブックマークを検索..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="flex-1 bg-transparent border-none focus:ring-0 text-sm py-1 outline-none"
+                className="flex-1 bg-transparent border-none focus:ring-0 text-sm py-1 outline-none text-gray-800"
               />
             </div>
-            {searchedBookmarks.length === 0 ? (
-              <p className="text-center text-slate-500 mt-10 text-sm">ブックマークが見つかりません</p>
+            {bookmarkPairs.length === 0 ? (
+              <p className="text-center text-gray-400 mt-10 text-sm">ブックマークが見つかりません</p>
             ) : (
-              searchedBookmarks.map((msg, idx) => (
-                <div key={msg.id || idx} className="bg-white rounded-2xl p-4 shadow-sm border border-slate-100 relative">
-                  <button 
-                    onClick={() => msg.id && toggleBookmark(msg.id, true)}
-                    className="absolute top-3 right-3 p-1.5 text-blue-500 hover:bg-blue-50 rounded-full transition-colors"
-                  >
-                    <Bookmark className="w-5 h-5 fill-current" />
-                  </button>
-                  <div className="text-sm font-medium leading-relaxed prose prose-sm max-w-none pr-8">
-                    <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                      {msg.content}
-                    </ReactMarkdown>
-                  </div>
-                </div>
-              ))
+              <div className="flex flex-col gap-2.5">
+                {bookmarkPairs.map((pair) => {
+                  const translation = extractMainText(pair.assistantContent);
+                  
+                  return (
+                    <div key={pair.id} className="bg-white rounded-[14px] p-4 shadow-sm border border-gray-100 relative flex items-center justify-between transition-all hover:shadow-md hover:border-blue-100 group">
+                      <div className="flex flex-col gap-1 flex-1 pr-4">
+                        <span className="text-[13px] font-medium text-gray-500 leading-tight">
+                          {pair.userContent}
+                        </span>
+                        <span className="text-[16px] font-bold text-gray-900 leading-tight">
+                          {translation}
+                        </span>
+                      </div>
+                      <button 
+                        onClick={() => pair.assistantId && toggleBookmark(pair.assistantId, true)}
+                        className="p-2 text-blue-500 hover:bg-blue-50 active:bg-blue-100 rounded-full transition-colors flex-shrink-0"
+                        title="ブックマーク解除"
+                      >
+                        <Bookmark className="w-5 h-5 fill-current" />
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
             )}
           </div>
         ) : (
           <>
             {messages.length === 0 && (
               <div className="pt-8 pb-4 text-center space-y-3">
-                <div className="inline-flex items-center justify-center w-12 h-12 rounded-2xl bg-blue-100 text-blue-600 mb-2">
+                <div className="inline-flex items-center justify-center w-12 h-12 rounded-2xl bg-blue-50 text-blue-500 mb-2">
                   <Sparkles className="w-6 h-6" />
                 </div>
-                <h2 className="text-2xl font-bold text-slate-900">What to say?</h2>
-                <p className="text-sm text-slate-500">日本語または英語を入力してください。</p>
+                <h2 className="text-2xl font-bold text-gray-900">What to say?</h2>
+                <p className="text-sm text-gray-500">日本語または英語を入力してください。</p>
               </div>
             )}
 
-            <div className="space-y-6">
+            <div className="space-y-4">
               {messages.map((msg, idx) => {
                 if (msg.role === 'user') {
                   return (
-                    <div key={msg.id || idx} className="bg-white rounded-2xl p-4 shadow-sm border border-slate-100 relative ml-auto w-[90%]">
-                      <p className="text-sm text-slate-600 leading-relaxed break-words pr-6">
+                    <div key={msg.id || idx} className="bg-blue-500 text-white rounded-2xl rounded-tr-sm px-4 py-2 shadow-sm relative ml-auto w-fit max-w-[85%]">
+                      <p className="text-[15px] leading-relaxed break-words">
                         {msg.content.replace(/【.*?】: /g, '')}
                       </p>
                     </div>
                   )
                 } else {
                   return (
-                    <div key={msg.id || idx} className="bg-gradient-to-br from-blue-600 to-blue-500 rounded-2xl shadow-lg shadow-blue-200 overflow-hidden text-white w-[95%] relative">
+                    <div key={msg.id || idx} className="text-gray-800 w-full relative pt-1 pb-2">
                       <button 
                         onClick={() => msg.id && toggleBookmark(msg.id, !!msg.is_bookmarked)}
-                        className={`absolute top-3 right-3 p-1.5 rounded-full transition-colors z-10 text-white hover:bg-white/10`}
+                        className={`absolute top-0 right-0 p-1.5 rounded-full transition-colors z-10 text-gray-400 hover:bg-gray-100`}
                       >
-                        <Bookmark className={`w-5 h-5 ${msg.is_bookmarked ? 'fill-white' : ''}`} />
+                        <Bookmark className={`w-4 h-4 ${msg.is_bookmarked ? 'fill-blue-500 text-blue-500' : ''}`} />
                       </button>
                       
-                      <div className="p-5">
-                         <div className="text-sm font-medium leading-relaxed prose-invert pr-6">
-                           <ReactMarkdown 
+                      <div className="text-[15px] leading-relaxed pr-8">
+                        <ReactMarkdown 
                              remarkPlugins={[remarkGfm]}
+                             rehypePlugins={[rehypeRaw]}
                              components={{
-                               p: ({node, ...props}) => <p className="mb-2 last:mb-0" {...props} />,
-                               ul: ({node, ...props}) => <ul className="list-disc ml-4 mb-2" {...props} />,
-                               ol: ({node, ...props}) => <ol className="list-decimal ml-4 mb-2" {...props} />,
-                               li: ({node, ...props}) => <li className="mb-1" {...props} />,
-                               strong: ({node, ...props}) => <strong className="font-bold text-white" {...props} />,
-                               hr: ({node, ...props}) => <hr className="my-3 border-blue-400/30" {...props} />,
+                               p: ({node, ...props}) => <p className="mb-1.5 last:mb-0" {...props} />,
+                               ul: ({node, ...props}) => <ul className="list-disc ml-4 mb-1.5 last:mb-0" {...props} />,
+                               ol: ({node, ...props}) => <ol className="list-decimal ml-4 mb-1.5 last:mb-0" {...props} />,
+                               li: ({node, ...props}) => <li className="mb-0.5 last:mb-0" {...props} />,
+                               strong: ({node, ...props}) => <strong className="font-bold text-gray-900" {...props} />,
+                               hr: ({node, ...props}) => <hr className="my-2 border-gray-200" {...props} />,
+                               blockquote: ({node, children, ...props}) => (
+                                 <div className="relative my-2 bg-gray-50 rounded-lg overflow-hidden border-l-4 border-gray-300 flex items-stretch">
+                                   <blockquote className="py-2 px-3 text-base font-bold flex-1 m-0 text-gray-800" {...props}>
+                                     {children}
+                                   </blockquote>
+                                   <button 
+                                     onClick={(e) => {
+                                       const text = e.currentTarget.previousElementSibling?.textContent || '';
+                                       navigator.clipboard.writeText(text);
+                                       const btn = e.currentTarget;
+                                       const copyIcon = btn.querySelector('.copy-icon');
+                                       const checkIcon = btn.querySelector('.check-icon');
+                                       if (copyIcon && checkIcon) {
+                                          copyIcon.classList.add('hidden');
+                                          checkIcon.classList.remove('hidden');
+                                          setTimeout(() => {
+                                             copyIcon.classList.remove('hidden');
+                                             checkIcon.classList.add('hidden');
+                                          }, 2000);
+                                       }
+                                     }}
+                                     className="px-3 text-gray-400 hover:text-gray-600 hover:bg-gray-200 transition-colors flex items-center justify-center border-l border-gray-200"
+                                     title="コピーする"
+                                   >
+                                     <Copy className="w-4 h-4 copy-icon block" />
+                                     <Check className="w-4 h-4 check-icon hidden text-green-500" />
+                                   </button>
+                                 </div>
+                               ),
+                               details: ({node, ...props}) => <details className="my-1.5 bg-gray-50 rounded-lg border border-gray-200 overflow-hidden [&_summary::-webkit-details-marker]:hidden text-sm [&[open]>summary]:mb-1.5 [&[open]]:pb-2 [&>*:not(summary)]:px-3" {...props} />,
+                               summary: ({node, ...props}) => (
+                                 <summary className="px-3 py-2 cursor-pointer font-medium hover:bg-gray-100 transition-colors flex items-center outline-none select-none" {...props}>
+                                    {props.children}
+                                 </summary>
+                               ),
                              }}
                            >
                              {msg.content}
                            </ReactMarkdown>
-                         </div>
                       </div>
                     </div>
                   )
@@ -260,12 +315,13 @@ export default function Home() {
               })}
               
               {isLoading && !messages[messages.length - 1]?.role.includes('assistant') && (
-                <div className="bg-gradient-to-br from-blue-600 to-blue-500 rounded-2xl shadow-lg shadow-blue-200 overflow-hidden text-white w-[95%] min-h-[100px] flex items-center justify-center">
+                <div className="text-gray-800 w-full pt-2 pb-1 flex items-center gap-2">
                    <div className="flex gap-1">
-                     <span className="w-2 h-2 bg-blue-200 rounded-full animate-bounce [animation-delay:-0.3s]"></span>
-                     <span className="w-2 h-2 bg-blue-200 rounded-full animate-bounce [animation-delay:-0.15s]"></span>
-                     <span className="w-2 h-2 bg-blue-200 rounded-full animate-bounce"></span>
+                     <span className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce [animation-delay:-0.3s]"></span>
+                     <span className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce [animation-delay:-0.15s]"></span>
+                     <span className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce"></span>
                    </div>
+                   <span className="text-xs text-gray-500">翻訳中...</span>
                 </div>
               )}
               <div ref={messagesEndRef} />
@@ -275,10 +331,10 @@ export default function Home() {
       </main>
 
       {activeTab === 'chat' && (
-        <div className="fixed bottom-0 left-0 right-0 bg-white shadow-[0_-10px_40px_rgba(0,0,0,0.05)] border-t border-slate-100 z-20 pb-safe">
+        <div className="fixed bottom-0 left-0 right-0 bg-white shadow-[0_-10px_40px_rgba(0,0,0,0.03)] border-t border-gray-100 z-20 pb-safe">
           <div className="max-w-md mx-auto p-4">
             <form onSubmit={onSubmit} className="flex gap-2 items-end">
-              <div className="bg-slate-100 rounded-2xl flex-1 flex items-center px-4 py-1.5 border border-transparent focus-within:border-blue-400 focus-within:bg-white focus-within:ring-4 focus-within:ring-blue-100 transition-all duration-200">
+              <div className="bg-gray-100 rounded-2xl flex-1 flex items-center pl-4 pr-1 py-1.5 border border-transparent focus-within:border-blue-400 focus-within:bg-white focus-within:ring-4 focus-within:ring-blue-50 transition-all duration-200">
                 <textarea
                   ref={textareaRef}
                   value={input}
@@ -291,16 +347,31 @@ export default function Home() {
                     }
                   }}
                   placeholder="翻訳したい文を入力..."
-                  className="w-full bg-transparent text-sm resize-none focus:outline-none py-2.5 max-h-[120px]"
+                  className="w-full bg-transparent text-sm resize-none focus:outline-none py-2.5 max-h-[120px] text-gray-800"
                   rows={1}
                   disabled={isLoading}
                 />
+                <button
+                  type="button"
+                  onClick={async () => {
+                    try {
+                      const text = await navigator.clipboard.readText();
+                      setInput(prev => prev + text);
+                    } catch (err) {
+                      console.error('Failed to read clipboard contents: ', err);
+                    }
+                  }}
+                  className="p-2 text-gray-400 hover:text-blue-500 hover:bg-white rounded-xl transition-colors shrink-0"
+                  title="ペースト"
+                >
+                  <ClipboardPaste className="w-5 h-5" />
+                </button>
               </div>
               
               <button
                 type="submit"
                 disabled={!input.trim() || isLoading}
-                className="bg-blue-600 text-white rounded-2xl w-12 h-12 flex-shrink-0 flex items-center justify-center shadow-lg shadow-blue-200 disabled:opacity-50 disabled:shadow-none transition-all focus:outline-none focus:ring-4 focus:ring-blue-100 hover:bg-blue-700 active:scale-95"
+                className="bg-blue-500 text-white rounded-2xl w-12 h-12 flex-shrink-0 flex items-center justify-center shadow-md shadow-blue-200 disabled:opacity-50 disabled:shadow-none transition-all focus:outline-none focus:ring-4 focus:ring-blue-100 hover:bg-blue-600 active:scale-95"
               >
                 <Send className="w-5 h-5 ml-0.5" />
               </button>
