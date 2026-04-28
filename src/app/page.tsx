@@ -23,6 +23,7 @@ export default function Home() {
   const [activeTab, setActiveTab] = useState<'chat' | 'bookmarks'>('chat');
   const [searchQuery, setSearchQuery] = useState('');
   const [withExplain, setWithExplain] = useState(false);
+  const [withExample, setWithExample] = useState(false);
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -107,7 +108,8 @@ export default function Home() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           messages: newMessages.map(m => ({ role: m.role, content: m.content })),
-          isExplainRequest: withExplain
+          isExplainRequest: withExplain,
+          isExampleRequest: withExample
         }),
       });
 
@@ -369,7 +371,25 @@ export default function Home() {
 
       {activeTab === 'chat' && (
         <div className="fixed bottom-0 left-0 right-0 bg-white shadow-[0_-10px_40px_rgba(0,0,0,0.03)] border-t border-gray-100 z-20 pb-safe">
-          <div className="max-w-md mx-auto p-4">
+          <div className="max-w-md mx-auto p-4 flex flex-col gap-2">
+            <div className="flex gap-2 items-center px-1">
+              <button
+                type="button"
+                onClick={() => setWithExplain(!withExplain)}
+                className={`px-3 py-1.5 text-xs font-medium rounded-full flex items-center gap-1.5 transition-colors ${withExplain ? 'text-blue-600 bg-blue-50 border border-blue-200' : 'text-gray-500 bg-gray-50 border border-gray-200 hover:bg-gray-100'}`}
+              >
+                <Sparkles className="w-3.5 h-3.5" />
+                解説
+              </button>
+              <button
+                type="button"
+                onClick={() => setWithExample(!withExample)}
+                className={`px-3 py-1.5 text-xs font-medium rounded-full flex items-center gap-1.5 transition-colors ${withExample ? 'text-green-600 bg-green-50 border border-green-200' : 'text-gray-500 bg-gray-50 border border-gray-200 hover:bg-gray-100'}`}
+              >
+                <MessageSquare className="w-3.5 h-3.5" />
+                例文
+              </button>
+            </div>
             <form onSubmit={onSubmit} className="flex gap-2 items-end">
               <div className="bg-gray-100 rounded-2xl flex-1 flex items-center pl-4 pr-1 py-1.5 border border-transparent focus-within:border-blue-400 focus-within:bg-white focus-within:ring-4 focus-within:ring-blue-50 transition-all duration-200">
                 <textarea
@@ -388,14 +408,6 @@ export default function Home() {
                   rows={1}
                   disabled={isLoading}
                 />
-                <button
-                  type="button"
-                  onClick={() => setWithExplain(!withExplain)}
-                  className={`p-2 rounded-xl transition-colors shrink-0 mr-1 ${withExplain ? 'text-blue-500 bg-blue-50' : 'text-gray-400 hover:text-blue-500 hover:bg-white'}`}
-                  title={withExplain ? "解説あり" : "解説なし"}
-                >
-                  <Sparkles className="w-5 h-5" />
-                </button>
                 <button
                   type="button"
                   onClick={async () => {
