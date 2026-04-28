@@ -22,7 +22,7 @@ Neo専用の英語メンター兼、通信量節約型の超高速翻訳機。
 
 export async function POST(req: Request) {
   try {
-    const { messages, context, mode } = await req.json();
+    const { messages, context, isExplainRequest } = await req.json();
 
     // Extract the latest user message
     const latestMessage = messages[messages.length - 1]?.content;
@@ -31,24 +31,35 @@ export async function POST(req: Request) {
       return new Response('No message provided', { status: 400 });
     }
 
-    const instruction = `
+    let instruction = "";
+    if (isExplainRequest) {
+      instruction = `
 ### 指示
 入力されたテキストの言語を自動で判定し、英語の場合は日本語に、日本語の場合は英語に翻訳してください。
 
 必ず以下のルールに従って出力してください。
 1. 翻訳結果の文章（英語に翻訳する場合は、Neoが今すぐ使える正確でシンプルな表現）は、必ず引用ブロック（>）を使って出力すること。
-2. 解説は、HTMLの <details> と <summary> タグを使用して折りたたみ可能にすること。
+2. 続いて、詳細な解説を行ってください。文法の解説や使用頻度（⭐️の数）、より自然な表現などを簡潔に記述してください。解説は **💡 解説** という見出しの後に続けてください。
 
 出力例:
 > Hello! （または こんにちは！）
 
-<details>
-<summary>💡 解説をみる</summary>
-
+**💡 解説**
 ここに文法の解説や使用頻度（⭐️の数）、より自然な表現などを記述。
-
-</details>
 `;
+    } else {
+      instruction = `
+### 指示
+入力されたテキストの言語を自動で判定し、英語の場合は日本語に、日本語の場合は英語に翻訳してください。
+
+必ず以下のルールに従って出力してください。
+1. 翻訳結果の文章（英語に翻訳する場合は、Neoが今すぐ使える正確でシンプルな表現）は、必ず引用ブロック（>）を使って出力すること。
+2. 解説は一切含めず、翻訳結果のみを出力してください。
+
+出力例:
+> Hello! （または こんにちは！）
+`;
+    }
 
     // Append context to user message if present
     const promptWithContext = context

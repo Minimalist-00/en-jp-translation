@@ -22,6 +22,7 @@ export default function Home() {
   const [isLoading, setIsLoading] = useState(false);
   const [activeTab, setActiveTab] = useState<'chat' | 'bookmarks'>('chat');
   const [searchQuery, setSearchQuery] = useState('');
+  const [withExplain, setWithExplain] = useState(false);
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -105,7 +106,8 @@ export default function Home() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          messages: newMessages.map(m => ({ role: m.role, content: m.content }))
+          messages: newMessages.map(m => ({ role: m.role, content: m.content })),
+          isExplainRequest: withExplain
         }),
       });
 
@@ -172,8 +174,12 @@ export default function Home() {
     );
 
   const extractMainText = (content: string) => {
-    const parts = content.split('<details>');
-    let mainText = parts[0].trim();
+    let mainText = content;
+    if (content.includes('<details>')) {
+      mainText = content.split('<details>')[0];
+    } else if (content.includes('**💡 解説**')) {
+      mainText = content.split('**💡 解説**')[0].replace('---', '');
+    }
     return mainText.replace(/^>\s*/gm, '').trim();
   };
 
@@ -280,12 +286,14 @@ export default function Home() {
                 } else {
                   return (
                     <div key={msg.id || idx} className="text-gray-800 w-full relative pt-1 pb-2">
-                      <button 
-                        onClick={() => msg.id && toggleBookmark(msg.id, !!msg.is_bookmarked)}
-                        className={`absolute top-0 right-0 p-1.5 rounded-full transition-colors z-10 text-gray-400 hover:bg-gray-100`}
-                      >
-                        <Bookmark className={`w-4 h-4 ${msg.is_bookmarked ? 'fill-blue-500 text-blue-500' : ''}`} />
-                      </button>
+                      <div className="absolute top-0 right-0 flex items-center gap-1 z-10">
+                        <button 
+                          onClick={() => msg.id && toggleBookmark(msg.id, !!msg.is_bookmarked)}
+                          className={`p-1.5 rounded-full transition-colors text-gray-400 hover:bg-gray-100`}
+                        >
+                          <Bookmark className={`w-4 h-4 ${msg.is_bookmarked ? 'fill-blue-500 text-blue-500' : ''}`} />
+                        </button>
+                      </div>
                       
                       <div className="text-[15px] leading-relaxed pr-8">
                         <ReactMarkdown 
@@ -380,6 +388,14 @@ export default function Home() {
                   rows={1}
                   disabled={isLoading}
                 />
+                <button
+                  type="button"
+                  onClick={() => setWithExplain(!withExplain)}
+                  className={`p-2 rounded-xl transition-colors shrink-0 mr-1 ${withExplain ? 'text-blue-500 bg-blue-50' : 'text-gray-400 hover:text-blue-500 hover:bg-white'}`}
+                  title={withExplain ? "解説あり" : "解説なし"}
+                >
+                  <Sparkles className="w-5 h-5" />
+                </button>
                 <button
                   type="button"
                   onClick={async () => {
