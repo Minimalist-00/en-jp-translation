@@ -186,7 +186,7 @@ export default function Home() {
   return (
     <div className="min-h-screen bg-gray-50 text-gray-800 font-sans selection:bg-blue-100 selection:text-blue-900">
       {/* Header */}
-      <header className="bg-white px-6 py-4 flex items-center justify-between sticky top-0 z-10 shadow-sm/50">
+      <header className="bg-white px-6 py-4 flex items-center justify-between sticky top-0 z-30 shadow-sm/50">
         <div className="flex items-center gap-2">
           <div className="w-8 h-8 rounded-full bg-blue-500 flex items-center justify-center text-white font-bold shadow-sm">
             N
