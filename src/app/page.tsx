@@ -12,6 +12,8 @@ type Message = {
   role: string;
   content: string;
   is_bookmarked?: boolean;
+  isHidden?: boolean;
+  created_at?: string;
 };
 
 export default function Home() {
@@ -33,18 +35,45 @@ export default function Home() {
   }, [input]);
 
   const handleReload = async () => {
-    // ブックマークされていないメッセージを削除
-    await supabase.from('messages').delete().not('is_bookmarked', 'eq', true);
+    if (isLoading) return;
+
+    // ブックマークに関わるものを残して他を消す
+    const keepIds = new Set<string>();
+    messages.forEach((msg, idx) => {
+      if (msg.role === 'assistant' && msg.is_bookmarked && msg.id) {
+        keepIds.add(msg.id);
+        const prevMsg = messages[idx - 1];
+        if (prevMsg && prevMsg.role === 'user' && prevMsg.id) {
+          keepIds.add(prevMsg.id);
+        }
+      }
+    });
+
+    const keepArray = Array.from(keepIds);
+    if (keepArray.length > 0) {
+      await supabase.from('messages').delete().not('id', 'in', `(${keepArray.join(',')})`);
+    } else {
+      await supabase.from('messages').delete().neq('role', 'none'); 
+    }
     
-    // 画面の表示を更新（ブックマークのみ残す）
-    setMessages(prev => prev.filter(m => m.is_bookmarked));
+    // 画面の表示を更新（全て隠す）
+    localStorage.setItem('chatClearedAt', new Date().toISOString());
+    setMessages(prev => prev.map(m => ({ ...m, isHidden: true })));
   };
 
   // Fetch initial messages from Supabase
   useEffect(() => {
     const fetchMessages = async () => {
       const { data } = await supabase.from('messages').select('*').order('created_at', { ascending: true });
-      if (data) setMessages(data);
+      if (data) {
+        const clearedAt = localStorage.getItem('chatClearedAt');
+        const clearedTime = clearedAt ? new Date(clearedAt).getTime() : 0;
+        
+        setMessages(data.map(m => ({
+          ...m,
+          isHidden: new Date(m.created_at).getTime() <= clearedTime
+        })));
+      }
     };
     fetchMessages();
   }, []);
@@ -228,7 +257,7 @@ export default function Home() {
           </div>
         ) : (
           <>
-            {messages.length === 0 && (
+            {messages.filter(m => !m.isHidden).length === 0 && (
               <div className="pt-8 pb-4 text-center space-y-3">
                 <div className="inline-flex items-center justify-center w-12 h-12 rounded-2xl bg-blue-50 text-blue-500 mb-2">
                   <Sparkles className="w-6 h-6" />
@@ -239,7 +268,7 @@ export default function Home() {
             )}
 
             <div className="space-y-4">
-              {messages.map((msg, idx) => {
+              {messages.filter(m => !m.isHidden).map((msg, idx) => {
                 if (msg.role === 'user') {
                   return (
                     <div key={msg.id || idx} className="bg-blue-500 text-white rounded-2xl rounded-tr-sm px-4 py-2 shadow-sm relative ml-auto w-fit max-w-[85%]">
@@ -340,7 +369,7 @@ export default function Home() {
                   value={input}
                   onChange={(e) => setInput(e.target.value)}
                   onKeyDown={(e) => {
-                    if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+                    if (e.key === 'Enter' && !e.shiftKey) {
                        e.preventDefault();
                        const form = e.currentTarget.closest('form');
                        if (form) form.requestSubmit();
